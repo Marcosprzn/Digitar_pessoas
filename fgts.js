@@ -137,8 +137,33 @@ window.__fgts = (function(){
   function parseBR(s){ s=(s||'').toString().trim(); if(!s) return 0; s=s.replace(/\\./g,'').replace(',','.'); var n=parseFloat(s); return isNaN(n)?0:n; }
   function getCpfInput(){ return document.querySelector('input[name="cpfTrabalhador"]'); }
   function getPesquisar(){ return Array.prototype.slice.call(document.querySelectorAll('button')).find(function(b){ return b.textContent.trim().toLowerCase()==='pesquisar'; }); }
+  function getExpandir(){ return Array.prototype.slice.call(document.querySelectorAll('button')).find(function(b){ return b.textContent.trim().toLowerCase()==='expandir pesquisa'; }); }
   function isLoading(){ var l=document.querySelector('br-loading'); return !!(l && l.querySelector('*')); }
   function indicesText(){ var el=document.querySelector('.indices'); return el?el.textContent.trim():''; }
+  async function expandirPesquisa(){ var btn=getExpandir(); if(btn){ btn.click(); await sleep(300); } }
+  async function selectNgOption(labelText, value){
+    var labels=Array.prototype.slice.call(document.querySelectorAll('br-label label'));
+    var label=labels.find(function(l){ return l.textContent.trim()===labelText; });
+    if(!label) return false;
+    var wrapper=label.closest('br-select')||label.closest('.brx-input-wrapper');
+    var ngSelect=wrapper.querySelector('ng-select');
+    if(!ngSelect) return false;
+    ngSelect.querySelector('.ng-select-container').click();
+    await sleep(400);
+    var input=ngSelect.querySelector('.ng-input input');
+    if(input){
+      var setter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
+      setter.call(input, value);
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+    await sleep(500);
+    var opts=document.querySelectorAll('.ng-option');
+    for(var i=0;i<opts.length;i++){
+      var lbl=opts[i].querySelector('.ng-option-label');
+      if(lbl && lbl.textContent.trim()===value){ opts[i].click(); await sleep(300); return true; }
+    }
+    return false;
+  }
   function setNativeValue(el, value){
     var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
     setter.call(el, value);
@@ -197,6 +222,8 @@ window.__fgts = (function(){
   async function process(cpf){
     var input=getCpfInput(); var btn=getPesquisar();
     if(!input || !btn) return { status:'sem-tela' };
+    await selectNgOption('Inicial', '09/2025');
+    await selectNgOption('Final', '04/2026');
     var cpfFmt=cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');
     setNativeValue(input, cpfFmt); input.blur(); await sleep(120);
     btn.click();
