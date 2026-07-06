@@ -275,10 +275,12 @@ async function esperarCampo(driver, maxMs) {
 async function esperarInicio(driver) {
   log('Aguardando login + clique em "INICIAR AUTOMACAO" (botao verde na pagina)...');
   let aviso = false;
+  let jaInjetou = false;
   while (true) {
     let st = null;
     try {
       st = await driver.executeScript(function () {
+        var injetou = false;
         if (!document.getElementById('fgts-iniciar-btn') && (document.body || document.documentElement)) {
           var b = document.createElement('button');
           b.id = 'fgts-iniciar-btn';
@@ -286,16 +288,21 @@ async function esperarInicio(driver) {
           b.style.cssText = 'position:fixed;top:10px;right:10px;z-index:2147483647;padding:12px 16px;background:#10b981;color:#04231a;font:bold 14px Arial;border:0;border-radius:8px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4)';
           b.onclick = function () { window.__FGTS_START = true; b.textContent = 'INICIANDO...'; b.disabled = true; };
           (document.body || document.documentElement).appendChild(b);
+          injetou = true;
         }
-        return { start: window.__FGTS_START === true, campo: !!document.querySelector('input[name="cpfTrabalhador"]') };
+        var url = window.location.href;
+        return { injetou: injetou, start: window.__FGTS_START === true, campo: !!document.querySelector('input[name="cpfTrabalhador"]'), url: url };
       });
-    } catch (e) { /* pagina navegando/login */ }
-    if (st && st.start && st.campo) return true;
-    if (st && st.start && !st.campo && !aviso) {
-      aviso = true;
-      log('Voce clicou Iniciar, mas a tela de pesquisa (campo CPF) nao esta aberta. Abra-a e clique de novo.', 'AVISO');
-      try { await driver.executeScript('window.__FGTS_START=false; var b=document.getElementById("fgts-iniciar-btn"); if(b){b.textContent="INICIAR AUTOMACAO"; b.disabled=false;}'); } catch (e) {}
-    } else if (st && !st.start) { aviso = false; }
+    } catch (e) { log('Aguardando pagina carregar... (' + e.message + ')', 'AVISO'); }
+    if (st) {
+      if (st.injetou && !jaInjetou) { jaInjetou = true; log('Botao INICIAR AUTOMACAO injetado na pagina: ' + st.url); }
+      if (st.start && st.campo) return true;
+      if (st.start && !st.campo && !aviso) {
+        aviso = true;
+        log('Voce clicou Iniciar, mas a tela de pesquisa (campo CPF) nao esta aberta. Abra-a e clique de novo.', 'AVISO');
+        try { await driver.executeScript('window.__FGTS_START=false; var b=document.getElementById("fgts-iniciar-btn"); if(b){b.textContent="INICIAR AUTOMACAO"; b.disabled=false;}'); } catch (e) {}
+      } else if (st && !st.start) { aviso = false; }
+    }
     await sleep(800);
   }
 }
