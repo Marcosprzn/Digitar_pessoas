@@ -363,7 +363,7 @@ async function esperarInicio(driver) {
   }
 
   const opts = new chrome.Options();
-  opts.setDebuggerAddress('127.0.0.1:' + CHROME_PORT);
+  opts.options_['debuggerAddress'] = '127.0.0.1:' + CHROME_PORT;
   let builder = new Builder().forBrowser('chrome').setChromeOptions(opts);
   try {
     driver = await builder.build();
