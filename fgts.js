@@ -258,6 +258,8 @@ window.__fgts = (function(){
     if(st==='vazio') return { status:'vazio' };
     if(st==='timeout') return { status:'timeout' };
     var chk=document.querySelector('#selecionar-todos'); if(chk && !chk.checked){ chk.click(); await sleep(120); }
+    var btnAdicionar=Array.prototype.slice.call(document.querySelectorAll('button')).find(function(b){ return b.textContent.trim().toLowerCase()==='adicionar à guia' || b.textContent.trim().toLowerCase()==='adicionar a guia'; });
+    if(btnAdicionar){ btnAdicionar.click(); await sleep(300); }
     var map=getColMap();
     var linhas=await coletarPaginas(cpf);
     var porData={};

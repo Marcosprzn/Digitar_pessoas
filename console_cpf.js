@@ -149,6 +149,10 @@
   const chk = document.querySelector('#selecionar-todos');
   if (chk && !chk.checked) { chk.click(); await sleep(120); }
 
+  // Clica em "Adicionar à guia"
+  const btnAdicionar = [...document.querySelectorAll('button')].find(b => { const t = b.textContent.trim().toLowerCase(); return t === 'adicionar à guia' || t === 'adicionar a guia'; });
+  if (btnAdicionar) { btnAdicionar.click(); await sleep(300); console.log('Adicionado a guia.'); }
+
   const map = getColMap();
   console.log('Colunas: apuracao=' + map.apur + ' total=' + map.total + ' (total de colunas=' + map.nCols + ')');
 
