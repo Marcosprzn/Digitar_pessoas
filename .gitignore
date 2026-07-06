@@ -1,0 +1,11 @@
+# Dados pessoais reais - NAO versionar (CPFs/nomes)
+*.xlsx
+*.xls
+*.csv
+pagina.txt
+
+# Temporarios
+scratchpad/
+_*.py
+_*.js
+_*.json
