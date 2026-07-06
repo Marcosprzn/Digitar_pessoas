@@ -119,14 +119,14 @@
   const cpfFmt = fmtCpf(CPF);
   console.log('CPF:', cpfFmt);
 
+  // Expande o painel de pesquisa PRIMEIRO (senao o campo CPF nem existe no DOM)
+  await expandirPesquisa();
+
   const input = getCpfInput();
   const btn = getPesquisar();
   if (!input || !btn) {
     return console.error('ERRO: Campo CPF ou botao Pesquisar nao encontrados. Certifique-se de estar na tela de pesquisa de debitos.');
   }
-
-  // Expande o painel de pesquisa (se estiver recolhido)
-  await expandirPesquisa();
 
   // Seleciona datas de competencia
   console.log('Selecionando datas de competencia...');

@@ -220,6 +220,7 @@ window.__fgts = (function(){
     return all;
   }
   async function process(cpf){
+    await expandirPesquisa();
     var input=getCpfInput(); var btn=getPesquisar();
     if(!input || !btn) return { status:'sem-tela' };
     await selectNgOption('Inicial', '09/2025');
