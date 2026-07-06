@@ -41,10 +41,8 @@ Escrever "  Arquitetura.......: $arch" 'White'
 Escrever "-----------------------------------------------------------------`n" 'Yellow'
 
 if ($legado) {
-  Escrever "AVISO (Windows 8): o Chrome 110+ NAO roda neste Windows." 'Red'
-  Escrever "       Use o Google Chrome 109 (ultima versao compativel com Win8)." 'Red'
-  Escrever "       Este instalador baixa o Chrome padrao; se ele nao abrir," 'Red'
-  Escrever "       instale manualmente o Chrome 109 (32 ou 64 bits).`n" 'Red'
+  Escrever "AVISO (Windows 8/8.1): o Chrome 110+ NAO roda neste Windows." 'Red'
+  Escrever "       Vou baixar o Chrome 109 (ultima versao compativel)." 'Yellow'
 }
 
 function Baixar($url, $destino) {
@@ -86,16 +84,37 @@ function AcharChrome {
 $chrome = AcharChrome
 if ($chrome) {
   Escrever "Google Chrome ja instalado: $chrome" 'Green'
+  if ($legado) { Escrever "ATENCAO: Se for Chrome 110+, nao abrira no Win8.1. Instale o Chrome 109 manualmente se necessario." 'DarkYellow' }
 } else {
-  Escrever "Google Chrome nao encontrado. Baixando instalador ($arch)..." 'Cyan'
-  $chUrl = if ($is64os) { 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi' } else { 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise.msi' }
+  if ($legado) {
+    Escrever "Google Chrome nao encontrado. Baixando Chrome 109 (ultima versao compativel com Win8.1)..." 'Cyan'
+    $chUrl = if ($is64os) { 'https://dl.google.com/release2/chrome/ac27hu2fqru4s4y2kqf6x2yqwe7a_109.0.5414.120/109.0.5414.120_chrome_installer.msi' } else { 'https://dl.google.com/release2/chrome/adnhw43c2q53x3gmk6ebbf2qposq_109.0.5414.120/109.0.5414.120_chrome_installer.msi' }
+    $chFallback = if ($is64os) { 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi' } else { 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise.msi' }
+  } else {
+    Escrever "Google Chrome nao encontrado. Baixando instalador ($arch)..." 'Cyan'
+    $chUrl = if ($is64os) { 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi' } else { 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise.msi' }
+  }
   $chMsi = Join-Path $env:TEMP ("chrome_" + $Stamp + ".msi")
   if (Baixar $chUrl $chMsi) {
     if (InstalarMsi $chMsi) { Escrever "Chrome instalado." 'Green' }
+    else {
+      Escrever "Falha ao instalar o Chrome 109. Tentando versao padrao..." 'DarkYellow'
+      if ($legado) {
+        $chMsi2 = Join-Path $env:TEMP ("chrome2_" + $Stamp + ".msi")
+        if (Baixar $chFallback $chMsi2) { InstalarMsi $chMsi2 | Out-Null; Remove-Item $chMsi2 -Force -ErrorAction SilentlyContinue }
+      }
+    }
     Remove-Item $chMsi -Force -ErrorAction SilentlyContinue
     $chrome = AcharChrome
-  } else { Escrever "Nao consegui baixar o Chrome. Instale manualmente (no Win8, versao 109)." 'Red' }
-  if ($legado -and $chrome) { Escrever "Lembre-se: no Windows 8 o Chrome precisa ser a versao 109 para abrir." 'DarkYellow' }
+  } elseif ($legado) {
+    Escrever "Nao consegui baixar o Chrome 109." 'Red'
+    Escrever "Baixe MANUALMENTE o Chrome 109 (64 bits) em:" 'Yellow'
+    Escrever "  https://dl.google.com/release2/chrome/ac27hu2fqru4s4y2kqf6x2yqwe7a_109.0.5414.120/109.0.5414.120_chrome_installer.msi" 'White'
+    Escrever "Ou (32 bits):" 'Yellow'
+    Escrever "  https://dl.google.com/release2/chrome/adnhw43c2q53x3gmk6ebbf2qposq_109.0.5414.120/109.0.5414.120_chrome_installer.msi" 'White'
+  } else {
+    Escrever "Nao consegui baixar o Chrome. Instale manualmente." 'Red'
+  }
 }
 
 # ---------------------- NPM INSTALL ----------------------
