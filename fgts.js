@@ -132,6 +132,7 @@ function acharChromedriver() {
 const PAGE_HELPERS = `
 window.__fgts = (function(){
   var CFG = { MAX_WAIT_MS: 20000, POLL_MS: 250 };
+  var panel = null, elStatus = null, elProg = null, elPause = null, paused = false;
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
   function digits(s){ return (s||'').toString().replace(/\\D/g,''); }
   function parseBR(s){ s=(s||'').toString().trim(); if(!s) return 0; s=s.replace(/\\./g,'').replace(',','.'); var n=parseFloat(s); return isNaN(n)?0:n; }
@@ -140,7 +141,29 @@ window.__fgts = (function(){
   function getExpandir(){ return Array.prototype.slice.call(document.querySelectorAll('button')).find(function(b){ return b.textContent.trim().toLowerCase()==='expandir pesquisa'; }); }
   function isLoading(){ var l=document.querySelector('br-loading'); return !!(l && l.querySelector('*')); }
   function indicesText(){ var el=document.querySelector('.indices'); return el?el.textContent.trim():''; }
-  async function expandirPesquisa(){ var btn=getExpandir(); if(btn){ btn.click(); await sleep(300); } }
+  async function expandirPesquisa(){ if(getCpfInput()) return; var btn=getExpandir(); if(btn){ btn.click(); await sleep(300); } }
+  function criarPanel(total){
+    if(panel) return;
+    panel=document.createElement('div');
+    panel.id='fgts-panel';
+    panel.style.cssText='position:fixed;top:10px;left:10px;z-index:2147483647;width:280px;font:12px/1.4 Arial,sans-serif;background:#0b3d2e;color:#eafff5;border:1px solid #10b981;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.4);';
+    panel.innerHTML='<div style="background:#10b981;color:#04231a;font-weight:bold;padding:6px 10px;border-radius:7px 7px 0 0;">Automacao FGTS</div><div style="padding:8px 10px;"><div id="fgts-p-status" style="margin-bottom:4px;">Aguardando...</div><div id="fgts-p-prog" style="margin-bottom:6px;font-weight:bold;font-size:14px;">0 / '+total+'</div><div style="background:#04231a;height:8px;border-radius:4px;margin-bottom:6px;overflow:hidden;"><div id="fgts-p-bar" style="height:100%;width:0%;background:#10b981;border-radius:4px;transition:width .3s;"></div></div><button id="fgts-p-pause" style="width:100%;padding:6px;cursor:pointer;background:#f59e0b;border:0;border-radius:5px;color:#000;font-weight:bold;">PAUSAR</button></div>';
+    document.body.appendChild(panel);
+    elStatus=panel.querySelector('#fgts-p-status');
+    elProg=panel.querySelector('#fgts-p-prog');
+    elPause=panel.querySelector('#fgts-p-pause');
+    elPause.onclick=function(){ paused=!paused; elPause.textContent=paused?'CONTINUAR':'PAUSAR'; elPause.style.background=paused?'#10b981':'#f59e0b'; };
+  }
+  function atualizarPainel(i, total, cpf){
+    if(!panel) criarPanel(total);
+    if(elStatus) elStatus.textContent=cpf?'Processando: '+cpf:'Aguardando...';
+    if(elProg) elProg.textContent=i+' / '+total;
+    var bar=document.querySelector('#fgts-p-bar');
+    if(bar) bar.style.width=total?Math.round(i/total*100)+'%':'0%';
+  }
+  async function aguardarSePausado(){
+    while(paused){ await sleep(500); }
+  }
   async function selectNgOption(labelText, value){
     var labels=Array.prototype.slice.call(document.querySelectorAll('br-label label'));
     var label=labels.find(function(l){ return l.textContent.trim()===labelText; });
@@ -219,7 +242,10 @@ window.__fgts = (function(){
     }
     return all;
   }
-  async function process(cpf){
+  async function process(cpf, i, total){
+    await aguardarSePausado();
+    if(!panel) criarPanel(total);
+    atualizarPainel(i+1, total, cpf);
     await expandirPesquisa();
     var input=getCpfInput(); var btn=getPesquisar();
     if(!input || !btn) return { status:'sem-tela' };
@@ -411,11 +437,11 @@ async function esperarInicio(driver) {
       }
       await ensureHelpers(driver);
 
-      const res = await driver.executeAsyncScript(function (cpf) {
+      const res = await driver.executeAsyncScript(function (cpf, i, total) {
         var done = arguments[arguments.length - 1];
-        try { window.__fgts.process(cpf).then(done, function (e) { done({ status: 'erro', erro: String(e && e.message || e) }); }); }
+        try { window.__fgts.process(cpf, i, total).then(done, function (e) { done({ status: 'erro', erro: String(e && e.message || e) }); }); }
         catch (e) { done({ status: 'erro', erro: String(e) }); }
-      }, cpf);
+      }, cpf, i, limite);
 
       if (!res || res.status === 'sem-tela') {
         semDebito.push({ i, cpf, nome, obs: 'tela de pesquisa ausente' });
