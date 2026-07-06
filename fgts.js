@@ -336,7 +336,12 @@ async function esperarInicio(driver) {
   if (chromeBin) opts.setChromeBinaryPath(chromeBin);
   opts.addArguments('--start-maximized');
   opts.addArguments('--disable-blink-features=AutomationControlled');
+  opts.addArguments('--disable-features=ChromeWhatsNewUI');
   opts.excludeSwitches('enable-automation');
+  opts.excludeSwitches('disable-component-update');
+  // usa o perfil padrao do Chrome (preserva login, cookies, captcha)
+  const userDataDir = process.env.LOCALAPPDATA + '\\Google\\Chrome\\User Data';
+  if (require('fs').existsSync(userDataDir)) opts.addArguments('--user-data-dir=' + userDataDir);
   let builder = new Builder().forBrowser('chrome').setChromeOptions(opts);
   if (driverBin) builder = builder.setChromeService(new chrome.ServiceBuilder(driverBin));
 
