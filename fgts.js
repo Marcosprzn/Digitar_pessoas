@@ -352,16 +352,19 @@ async function esperarInicio(driver) {
     });
   }
 
-  let driver;
   if (!(await checkChromeDebug())) {
-    log('Abrindo Chrome na porta ' + CHROME_PORT + ' (pode pedir permissao de firewall)...');
+    log('Fechando Chrome existente e reiniciando com --remote-debugging-port...');
+    try { require('child_process').execSync('taskkill /f /im chrome.exe', { stdio: 'ignore' }); } catch (e) {}
+    await sleep(1000);
     const args = ['--remote-debugging-port=' + CHROME_PORT, '--start-maximized', '--no-first-run', CFG.START_URL];
     require('child_process').execFile(chromeBin, args, { detached: true }).unref();
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 30; i++) {
       await sleep(1000);
-      if (await checkChromeDebug()) break;
+      if (await checkChromeDebug()) { log('Chrome iniciado na porta ' + CHROME_PORT + '.'); break; }
       if (i === 5) log('Aguardando Chrome iniciar...');
     }
+  } else {
+    log('Chrome ja esta aberto na porta ' + CHROME_PORT + '. Conectando...');
   }
 
   if (!(await checkChromeDebug())) {
