@@ -1,0 +1,17 @@
+{
+  "name": "digitar-pessoas-fgts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Automacao FGTS Digital via Node + Selenium + Google Chrome",
+  "main": "fgts.js",
+  "scripts": {
+    "start": "node fgts.js"
+  },
+  "dependencies": {
+    "selenium-webdriver": "4.11.1",
+    "xlsx": "0.18.5"
+  },
+  "engines": {
+    "node": ">=14"
+  }
+}

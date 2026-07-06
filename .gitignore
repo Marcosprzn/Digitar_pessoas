@@ -4,6 +4,16 @@
 *.csv
 pagina.txt
 
+# Saidas / logs
+fgts_resultados_*.xlsx
+fgts_log_*.log
+fgts_instalador_*.log
+
+# Node
+node_modules/
+npm-debug.log*
+package-lock.json
+
 # Temporarios
 scratchpad/
 _*.py

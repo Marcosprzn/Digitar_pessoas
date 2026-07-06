@@ -1,47 +1,58 @@
 # Digitar Pessoas — Automação FGTS Digital
 
-Userscript (Tampermonkey) que automatiza a pesquisa de débitos por CPF no **FGTS Digital**
-(módulo de cobrança), soma os valores da coluna **Total** por competência de apuração e gera
-uma planilha de resultados.
+Automatiza a pesquisa de débitos por CPF no **FGTS Digital** (módulo de cobrança),
+soma os valores da coluna **Total** por competência de apuração e gera uma planilha
+de resultados + log detalhado.
 
-## Recursos
+Há **duas formas** de usar:
 
-- **Seleciona a planilha** (`.xlsx`) direto pelo painel na tela — nada fica embutido no script.
-- Ao selecionar, **pergunta quantos CPFs** processar (ENTER = todos) e **inicia sozinho**.
-- Lê **coluna A = CPF**, **coluna C = Nome**, filtra **coluna F = "D"** (configurável em `CFG`).
-- Para cada CPF: digita no campo *CPF do Trabalhador*, clica em *Pesquisar*, marca *selecionar-todos*,
-  lê a tabela (todas as páginas) e **soma o Total agrupado por competência de apuração**.
-  Quando o mesmo CPF tem mais de um débito na mesma competência, os valores são somados.
-- **Cronômetro de sessão**: quando faltam ≤ 5s, salva o progresso, **recarrega a página e retoma**
-  automaticamente de onde parou (estado em `localStorage`; por isso é um userscript, não um script
-  de console — ele sobrevive ao reload e não precisa re-selecionar a planilha).
-- **Log detalhado** de tudo (com timestamps), baixável como `.log` a qualquer momento e no fim.
-- No fim, gera a planilha `fgts_resultados_AAAA-MM-DD-HH-MM-SS.xlsx` (abas *Resultados* e
-  *Sem_Debito_Erros*).
+## 1) Node.js + Selenium + Google Chrome (recomendado — arquivo `fgts.js`)
 
-## Instalação
+Script standalone que abre a planilha, abre o Chrome, espera você logar e mostra um
+botão **INICIAR AUTOMAÇÃO** na página.
 
-1. Instale a extensão **Tampermonkey** (Chrome/Edge/Firefox).
-2. Tampermonkey → *Criar novo script* → cole o conteúdo de [`fgts_automacao.user.js`](fgts_automacao.user.js) → salve.
-   (O `@require` do SheetJS é baixado pelo Tampermonkey na instalação.)
-3. Faça login no FGTS Digital e abra a tela de **pesquisa de débitos** (com o campo *CPF do Trabalhador*).
-4. Use o painel no canto superior direito: **Selecionar planilha e iniciar**.
+### Fluxo
+1. `RODAR.bat` (ou `node fgts.js`) → abre um diálogo para **selecionar a planilha** `.xlsx`.
+2. Pergunta **quantos CPFs** processar (ENTER = todos).
+3. Abre o **Chrome** no FGTS Digital e **espera você fazer login** e chegar à tela de pesquisa.
+4. Clique no botão verde **INICIAR AUTOMAÇÃO** → começa.
+5. Para cada CPF: digita, pesquisa, marca *selecionar-todos*, lê a tabela (todas as páginas)
+   e **soma o Total por competência de apuração** (duplicados na mesma competência são somados).
+6. **Cronômetro de sessão**: faltando ≤ 5s, recarrega a página e continua do mesmo ponto
+   (a sessão do Chrome é preservada; o índice fica na memória do Node).
+7. No fim gera `fgts_resultados_AAAA-MM-DD-HH-MM-SS.xlsx` e `fgts_log_...log`.
 
-## Botões do painel
+### Instalação
+- Dê dois cliques em **`INSTALAR.bat`** (pede Administrador). Ele:
+  - detecta **versão do Windows e 32/64 bits**;
+  - instala **Node.js** e **Google Chrome**;
+  - roda `npm install` (baixa `selenium-webdriver` e `xlsx`; o chromedriver certo é
+    resolvido automaticamente pelo Selenium Manager).
+- Depois use **`RODAR.bat`**.
 
-| Botão | Ação |
-|-------|------|
-| Selecionar planilha e iniciar | Escolhe o `.xlsx`, pergunta a quantidade e começa |
-| Retomar | Continua a partir do índice salvo (após parar/recarregar) |
-| Parar | Interrompe (não apaga o progresso) |
-| Baixar XLSX | Gera a planilha de resultados a qualquer momento |
-| Baixar log | Baixa o `.log` com tudo que aconteceu |
-| Limpar tudo | Apaga o progresso salvo no `localStorage` |
+> ⚠️ **Windows 8:** o Chrome **110+ não abre** no Win8. Use o **Chrome 109** (última versão
+> compatível, 32 ou 64 bits). O `fgts.js` foi escrito para essa realidade.
+> Node.js: use a linha **14.x** (compatível com Win8.1).
 
-## Configuração (`CFG` no topo do script)
+## 2) Userscript no navegador (alternativa — `fgts_automacao.user.js`)
 
-- `VALOR_FILTRO` — valor exigido na coluna F (padrão `'D'`; use `''` para não filtrar).
+Roda dentro do navegador via **Tampermonkey**, com painel próprio e botão *Selecionar
+planilha e iniciar*. Usa **SheetJS** via `@require`. Bom para Win7/8 com **Firefox ESR 115**.
+Veja os comentários no topo do arquivo.
+
+## Configuração comum (`CFG` no topo dos scripts)
+- `VALOR_FILTRO` — valor exigido na coluna F (padrão `'D'`; `''` desativa o filtro).
 - `RELOAD_AT_SEC` — segundos restantes no cronômetro para recarregar (padrão `5`).
 - `COL_CPF` / `COL_NOME` / `COL_FILTRO` — índices das colunas (0 = A).
+- `START_URL` (em `fgts.js`) — endereço inicial aberto no Chrome.
 
-> **Privacidade:** as planilhas com CPFs/nomes reais **não** são versionadas (ver `.gitignore`).
+## Arquivos
+| Arquivo | Função |
+|---------|--------|
+| `fgts.js` | Automação Node + Selenium + Chrome |
+| `package.json` | Dependências npm |
+| `INSTALAR.bat` / `instalar_dependencias.ps1` | Instalador (Node + Chrome + npm install) |
+| `RODAR.bat` | Executa a automação |
+| `fgts_automacao.user.js` | Alternativa via Tampermonkey |
+
+> **Privacidade:** planilhas com CPFs/nomes reais e os logs **não** são versionados (ver `.gitignore`).
