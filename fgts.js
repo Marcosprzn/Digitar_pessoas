@@ -332,27 +332,45 @@ async function esperarInicio(driver) {
   const driverBin = acharChromedriver();
   log('chromedriver: ' + (driverBin || '(Selenium Manager resolve automaticamente)'));
 
-  const opts = new chrome.Options();
-  if (chromeBin) opts.setChromeBinaryPath(chromeBin);
-  opts.addArguments('--start-maximized');
-  opts.addArguments('--disable-blink-features=AutomationControlled');
-  opts.addArguments('--disable-features=ChromeWhatsNewUI');
-  opts.excludeSwitches('enable-automation');
-  opts.excludeSwitches('disable-component-update');
-  opts.addArguments('--no-first-run');
-  let builder = new Builder().forBrowser('chrome').setChromeOptions(opts);
-  if (driverBin) builder = builder.setChromeService(new chrome.ServiceBuilder(driverBin));
+  // Chrome aberto como processo NORMAL via --remote-debugging-port
+  // Assim o Selenium conecta sem injetar flags de automacao e o captcha funciona
+  const CHROME_PORT = 9222;
+  const http = require('http');
+
+  function checkChromeDebug() {
+    return new Promise((res) => {
+      const req = http.get('http://127.0.0.1:' + CHROME_PORT + '/json/version', (r) => { res(true); r.resume(); });
+      req.on('error', () => res(false));
+      req.setTimeout(2000, () => { req.destroy(); res(false); });
+    });
+  }
 
   let driver;
+  if (!(await checkChromeDebug())) {
+    log('Abrindo Chrome na porta ' + CHROME_PORT + ' (pode pedir permissao de firewall)...');
+    const args = ['--remote-debugging-port=' + CHROME_PORT, '--start-maximized', '--no-first-run', CFG.START_URL];
+    require('child_process').execFile(chromeBin, args, { detached: true }).unref();
+    for (let i = 0; i < 40; i++) {
+      await sleep(1000);
+      if (await checkChromeDebug()) break;
+      if (i === 5) log('Aguardando Chrome iniciar...');
+    }
+  }
+
+  if (!(await checkChromeDebug())) {
+    log('Chrome nao iniciou. Abra manualmente com: chrome.exe --remote-debugging-port=' + CHROME_PORT, 'ERRO');
+    process.exit(1);
+  }
+
+  const opts = new chrome.Options();
+  opts.setDebuggerAddress('127.0.0.1:' + CHROME_PORT);
+  let builder = new Builder().forBrowser('chrome').setChromeOptions(opts);
   try {
-    log('Iniciando Chrome (pode demorar baixando chromedriver na 1a vez)...');
     driver = await builder.build();
     await driver.manage().setTimeouts({ script: CFG.SCRIPT_TIMEOUT_MS, pageLoad: CFG.PAGELOAD_TIMEOUT_MS, implicit: 0 });
-    await driver.get(CFG.START_URL);
-    log('Chrome aberto em ' + CFG.START_URL);
+    log('Conectado ao Chrome. Faca login se necessario e clique em INICIAR AUTOMACAO.');
   } catch (e) {
-    log('Falha ao iniciar o Chrome/chromedriver: ' + e.message, 'ERRO');
-    log('Verifique se o Chrome esta instalado (rode o instalador). No Windows 8 use Chrome 109.', 'ERRO');
+    log('Falha ao conectar ao Chrome: ' + e.message, 'ERRO');
     process.exit(1);
   }
 
