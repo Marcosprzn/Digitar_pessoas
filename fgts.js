@@ -299,7 +299,11 @@ async function esperarInicio(driver) {
       if (st.start && st.campo) return true;
       if (st.start && !st.campo && !aviso) {
         aviso = true;
-        log('Voce clicou Iniciar, mas a tela de pesquisa (campo CPF) nao esta aberta. Abra-a e clique de novo.', 'AVISO');
+        log('Campo CPF nao visivel. Tentando expandir pesquisa automaticamente...', 'AVISO');
+        try { await driver.executeScript("var b=Array.prototype.slice.call(document.querySelectorAll('button')).find(function(b){return b.textContent.trim().toLowerCase()==='expandir pesquisa'}); if(b)b.click();"); await sleep(500); } catch (e) {}
+        // verifica se funcionou
+        try { var st2 = await driver.executeScript(function(){ return {campo: !!document.querySelector('input[name=\"cpfTrabalhador\"]')}; }); if (st2 && st2.campo) { aviso = false; continue; } } catch (e) {}
+        log('Nao achou o campo CPF. Abra a tela de pesquisa manualmente e clique em INICIAR de novo.', 'AVISO');
         try { await driver.executeScript('window.__FGTS_START=false; var b=document.getElementById("fgts-iniciar-btn"); if(b){b.textContent="INICIAR AUTOMACAO"; b.disabled=false;}'); } catch (e) {}
       } else if (st && !st.start) { aviso = false; }
     }
