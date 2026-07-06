@@ -339,9 +339,7 @@ async function esperarInicio(driver) {
   opts.addArguments('--disable-features=ChromeWhatsNewUI');
   opts.excludeSwitches('enable-automation');
   opts.excludeSwitches('disable-component-update');
-  // usa o perfil padrao do Chrome (preserva login, cookies, captcha)
-  const userDataDir = process.env.LOCALAPPDATA + '\\Google\\Chrome\\User Data';
-  if (require('fs').existsSync(userDataDir)) opts.addArguments('--user-data-dir=' + userDataDir);
+  opts.addArguments('--no-first-run');
   let builder = new Builder().forBrowser('chrome').setChromeOptions(opts);
   if (driverBin) builder = builder.setChromeService(new chrome.ServiceBuilder(driverBin));
 
