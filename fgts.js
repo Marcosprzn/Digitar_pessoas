@@ -368,7 +368,9 @@ async function esperarInicio(driver) {
   try {
     driver = await builder.build();
     await driver.manage().setTimeouts({ script: CFG.SCRIPT_TIMEOUT_MS, pageLoad: CFG.PAGELOAD_TIMEOUT_MS, implicit: 0 });
-    log('Conectado ao Chrome. Faca login se necessario e clique em INICIAR AUTOMACAO.');
+    log('Conectado ao Chrome. Navegando para ' + CFG.START_URL + '...');
+    await driver.get(CFG.START_URL);
+    log('Pagina carregada. Faca login se necessario e clique em INICIAR AUTOMACAO.');
   } catch (e) {
     log('Falha ao conectar ao Chrome: ' + e.message, 'ERRO');
     process.exit(1);
