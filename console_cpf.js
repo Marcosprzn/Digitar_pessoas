@@ -7,6 +7,7 @@
   const CPF = '16997155480';
   const MAX_WAIT_MS = 20000;
   const POLL_MS = 250;
+  let datasSetadas = false;
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const digits = s => (s || '').toString().replace(/\D/g, '');
@@ -128,11 +129,14 @@
     return console.error('ERRO: Campo CPF ou botao Pesquisar nao encontrados. Certifique-se de estar na tela de pesquisa de debitos.');
   }
 
-  // Seleciona datas de competencia
-  console.log('Selecionando datas de competencia...');
-  await selectNgOption('Inicial', '09/2025');
-  await selectNgOption('Final', '04/2026');
-  await sleep(300);
+  // Seleciona datas de competencia (so na primeira vez ou apos reload)
+  if (!datasSetadas) {
+    console.log('Selecionando datas de competencia...');
+    await selectNgOption('Inicial', '09/2025');
+    await selectNgOption('Final', '04/2026');
+    datasSetadas = true;
+    await sleep(300);
+  }
 
   // Digita o CPF e pesquisa
   setNativeValue(input, cpfFmt);

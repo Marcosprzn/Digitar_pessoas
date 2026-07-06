@@ -132,7 +132,7 @@ function acharChromedriver() {
 const PAGE_HELPERS = `
 window.__fgts = (function(){
   var CFG = { MAX_WAIT_MS: 20000, POLL_MS: 250 };
-  var panel = null, elStatus = null, elProg = null, elPause = null, paused = false;
+  var panel = null, elStatus = null, elProg = null, elPause = null, paused = false, datasSetadas = false;
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
   function digits(s){ return (s||'').toString().replace(/\\D/g,''); }
   function parseBR(s){ s=(s||'').toString().trim(); if(!s) return 0; s=s.replace(/\\./g,'').replace(',','.'); var n=parseFloat(s); return isNaN(n)?0:n; }
@@ -249,8 +249,11 @@ window.__fgts = (function(){
     await expandirPesquisa();
     var input=getCpfInput(); var btn=getPesquisar();
     if(!input || !btn) return { status:'sem-tela' };
-    await selectNgOption('Inicial', '09/2025');
-    await selectNgOption('Final', '04/2026');
+    if(!datasSetadas){
+      await selectNgOption('Inicial', '09/2025');
+      await selectNgOption('Final', '04/2026');
+      datasSetadas = true;
+    }
     var cpfFmt=cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');
     setNativeValue(input, cpfFmt); input.blur(); await sleep(120);
     btn.click();
