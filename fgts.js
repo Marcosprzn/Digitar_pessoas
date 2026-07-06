@@ -345,6 +345,7 @@ async function esperarInicio(driver) {
 
   let driver;
   try {
+    log('Iniciando Chrome (pode demorar baixando chromedriver na 1a vez)...');
     driver = await builder.build();
     await driver.manage().setTimeouts({ script: CFG.SCRIPT_TIMEOUT_MS, pageLoad: CFG.PAGELOAD_TIMEOUT_MS, implicit: 0 });
     await driver.get(CFG.START_URL);
