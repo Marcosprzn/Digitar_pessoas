@@ -474,29 +474,43 @@ async function esperarInicio(driver) {
 
   // 5) gera planilha
   try {
-    // Identifica CPFs com soma zero
+    const wb = XLSX.utils.book_new();
+
+    // Agrupa resultados por competencia
+    const porCompetencia = {};
+    for (const r of resultados) {
+      if (!porCompetencia[r.competencia]) porCompetencia[r.competencia] = [];
+      porCompetencia[r.competencia].push(r);
+    }
+
+    // Uma aba por mes: CPF | Nome | Valor + linha TOTAL
+    const comps = Object.keys(porCompetencia).sort();
+    for (const comp of comps) {
+      const itens = porCompetencia[comp];
+      let soma = 0;
+      const linhas = itens.map(r => { soma += r.soma; return { CPF: r.cpf, Nome: r.nome, Valor: Number(r.soma.toFixed(2)) }; });
+      linhas.push({ CPF: '', Nome: 'TOTAL', Valor: Number(soma.toFixed(2)) });
+      const nomeAba = comp.replace(/[/\\?*[\]]/g, '-').slice(0, 31) || 'Competencia';
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhas), nomeAba);
+    }
+    if (!comps.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ CPF: '', Nome: '', Valor: '' }]), 'Sem dados');
+
+    const rows2 = semDebito.map(s => ({ Indice: s.i, CPF: fmtCpf(s.cpf), Nome: s.nome, Obs: s.obs }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows2.length ? rows2 : [{ Indice: '', CPF: '', Nome: '', Obs: '' }]), 'Sem_Debito_Erros');
+
+    // Zero ou erro: CPFs com valor zero + semDebito
     const somaPorCpf = {}, nomePorCpf = {};
     for (const r of resultados) {
       somaPorCpf[r.cpf] = (somaPorCpf[r.cpf] || 0) + r.soma;
       nomePorCpf[r.cpf] = r.nome;
     }
-    const cpfZero = Object.keys(somaPorCpf).filter(c => somaPorCpf[c] === 0);
-    const cpfZeroSet = new Set(cpfZero);
-    const zeros = cpfZero.map(c => ({ CPF: c, Nome: nomePorCpf[c], Obs: 'Valor total R$ 0,00' }));
-
-    const wb = XLSX.utils.book_new();
-    const rows = resultados.map(r => ({ Indice: r.i, CPF: r.cpf, Nome: r.nome, Competencia: r.competencia, Qtd_Debitos: r.qtd, Soma_Total: Number(Number(r.soma).toFixed(2)) }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ Indice: '', CPF: '', Nome: '', Competencia: '', Qtd_Debitos: '', Soma_Total: '' }]), 'Resultados');
-
-    const rows2 = semDebito.map(s => ({ Indice: s.i, CPF: fmtCpf(s.cpf), Nome: s.nome, Obs: s.obs }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows2.length ? rows2 : [{ Indice: '', CPF: '', Nome: '', Obs: '' }]), 'Sem_Debito_Erros');
-
+    const zeros = Object.keys(somaPorCpf).filter(c => somaPorCpf[c] === 0).map(c => ({ CPF: c, Nome: nomePorCpf[c], Obs: 'Valor total R$ 0,00' }));
     const rows3 = zeros.concat(semDebito.map(s => ({ CPF: fmtCpf(s.cpf), Nome: s.nome, Obs: s.obs })));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows3.length ? rows3 : [{ CPF: '', Nome: '', Obs: '' }]), 'Zero_ou_Erro');
 
     const outPath = path.join(process.cwd(), 'fgts_resultados_' + STAMP + '.xlsx');
     XLSX.writeFile(wb, outPath);
-    log('=== CONCLUIDO === ' + resultados.length + ' linhas | ' + semDebito.length + ' sem debito/erros | ' + rows3.length + ' zero/erro');
+    log('=== CONCLUIDO === ' + resultados.length + ' linhas em ' + comps.length + ' meses | ' + semDebito.length + ' sem debito/erros | ' + rows3.length + ' zero/erro');
     log('Planilha gerada: ' + outPath);
   } catch (e) { log('Erro ao gerar planilha: ' + e.message, 'ERRO'); }
 
