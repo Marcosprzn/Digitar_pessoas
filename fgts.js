@@ -155,18 +155,6 @@ window.__fgts = (function(){
   function semItens(){ var els=document.querySelectorAll('.description, .empty, .datatable-body .empty-row'); for(var i=0;i<els.length;i++){ if(els[i].textContent.replace(/\\s+/g,' ').trim().toLowerCase().indexOf('nenhum item encontrado')>=0) return true; } return false; }
   function indicesText(){ var el=document.querySelector('.indices'); return el?el.textContent.trim():''; }
   async function expandirPesquisa(){ if(getCpfInput()) return; var btn=getExpandir(); if(btn){ btn.click(); await sleep(300); } }
-  async function garantirPaginacaoVisivel(){
-    // O br-pagination-table (que contem o select "Exibir") aparece no DOM
-    // apos a pesquisa retornar os resultados.
-    if(document.querySelector('br-pagination-table')) return; // ja esta visivel
-    
-    // Aguarda br-pagination-table aparecer no DOM (max 5s)
-    var t0=Date.now();
-    while(Date.now()-t0 < 5000){
-      if(document.querySelector('br-pagination-table')) break;
-      await sleep(200);
-    }
-  }
   function criarPanel(total){
     if(panel) return;
     panel=document.createElement('div');
@@ -266,20 +254,25 @@ window.__fgts = (function(){
     // O input dentro e readonly - so funciona clicando nas opcoes do dropdown.
     valor=String(valor);
 
-    // 1) Localiza o label cujo [for] termina em "-ex" (distingue de "-pp" = Pagina)
     var lbl=null;
-    var allLabels=Array.prototype.slice.call(document.querySelectorAll('br-pagination-table label, .pagination-container label'));
-    for(var j=0;j<allLabels.length;j++){
-      var forAttr=(allLabels[j].getAttribute('for')||'');
-      var txt=allLabels[j].textContent.replace(/\\s+/g,' ').trim().toLowerCase();
-      if(forAttr.slice(-3)==='-ex' || txt.indexOf('exibir')>=0){ lbl=allLabels[j]; break; }
+    // Tenta encontrar o label por ate 5 segundos (Angular delay)
+    var t0=Date.now();
+    while(Date.now()-t0 < 5000){
+      var allLabels=Array.prototype.slice.call(document.querySelectorAll('br-pagination-table label, .pagination-container label'));
+      for(var j=0;j<allLabels.length;j++){
+        var forAttr=(allLabels[j].getAttribute('for')||'');
+        var txt=allLabels[j].textContent.replace(/\\s+/g,' ').trim().toLowerCase();
+        if(forAttr.slice(-3)==='-ex' || txt.indexOf('exibir')>=0){ lbl=allLabels[j]; break; }
+      }
+      if(!lbl){
+        lbl=Array.prototype.slice.call(document.querySelectorAll('label')).find(function(l){
+          return l.textContent.replace(/\\s+/g,' ').trim().toLowerCase().indexOf('exibir')>=0;
+        })||null;
+      }
+      if(lbl) break;
+      await sleep(200);
     }
-    // fallback: qualquer label com texto "exibir" na pagina
-    if(!lbl){
-      lbl=Array.prototype.slice.call(document.querySelectorAll('label')).find(function(l){
-        return l.textContent.replace(/\\s+/g,' ').trim().toLowerCase().indexOf('exibir')>=0;
-      })||null;
-    }
+    
     if(!lbl) return false;
 
     // 2) Sobe ate o .pgitem e pega o ng-select dentro dele
@@ -357,10 +350,9 @@ window.__fgts = (function(){
     var st=await waitResults(cpf);
     if(st==='vazio') return { status:'vazio' };
     if(st==='timeout') return { status:'timeout' };
-    // Garante que o painel de paginacao (Exibir) esta visivel no DOM antes de mudar.
-    // O select so aparece apos clicar em "Expandir Pesquisa".
-    await garantirPaginacaoVisivel();
+    
     // Garante 50 itens por pagina antes de ler (senao quem tem >5 debitos some).
+    // A funcao interna aguarda os elementos aparecerem no DOM
     await setExibirPorPagina(50);
     // LE OS RESULTADOS ANTES de qualquer mutacao. Clicar em "Adicionar a guia"
     // limpa/altera a grade, entao a leitura precisa vir primeiro (senao o CPF
