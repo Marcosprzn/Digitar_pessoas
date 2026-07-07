@@ -155,6 +155,20 @@ window.__fgts = (function(){
   function semItens(){ var els=document.querySelectorAll('.description, .empty, .datatable-body .empty-row'); for(var i=0;i<els.length;i++){ if(els[i].textContent.replace(/\\s+/g,' ').trim().toLowerCase().indexOf('nenhum item encontrado')>=0) return true; } return false; }
   function indicesText(){ var el=document.querySelector('.indices'); return el?el.textContent.trim():''; }
   async function expandirPesquisa(){ if(getCpfInput()) return; var btn=getExpandir(); if(btn){ btn.click(); await sleep(300); } }
+  async function garantirPaginacaoVisivel(){
+    // O br-pagination-table (que contem o select "Exibir") so aparece no DOM
+    // apos clicar em "Expandir Pesquisa". Esta funcao garante isso antes de
+    // tentar mudar o select Exibir para 50 itens.
+    if(document.querySelector('br-pagination-table')) return; // ja esta visivel
+    var btn=getExpandir();
+    if(btn){ btn.click(); await sleep(500); }
+    // Aguarda br-pagination-table aparecer no DOM (max 5s)
+    var t0=Date.now();
+    while(Date.now()-t0 < 5000){
+      if(document.querySelector('br-pagination-table')) break;
+      await sleep(200);
+    }
+  }
   function criarPanel(total){
     if(panel) return;
     panel=document.createElement('div');
@@ -345,6 +359,9 @@ window.__fgts = (function(){
     var st=await waitResults(cpf);
     if(st==='vazio') return { status:'vazio' };
     if(st==='timeout') return { status:'timeout' };
+    // Garante que o painel de paginacao (Exibir) esta visivel no DOM antes de mudar.
+    // O select so aparece apos clicar em "Expandir Pesquisa".
+    await garantirPaginacaoVisivel();
     // Garante 50 itens por pagina antes de ler (senao quem tem >5 debitos some).
     await setExibirPorPagina(50);
     // LE OS RESULTADOS ANTES de qualquer mutacao. Clicar em "Adicionar a guia"
