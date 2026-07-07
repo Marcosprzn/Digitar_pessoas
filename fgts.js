@@ -248,6 +248,32 @@ window.__fgts = (function(){
     }
     return 'timeout';
   }
+  async function setExibirPorPagina(valor){
+    // O seletor "Exibir:" (itens por pagina) vem em 5 por padrao. Com 5, quem
+    // tem mais de 5 debitos fica em outras paginas. Muda para 50 (input readonly:
+    // abre o dropdown e clica na opcao).
+    valor=String(valor);
+    var labels=Array.prototype.slice.call(document.querySelectorAll('br-pagination-table label, .pagination-container label'));
+    var lbl=labels.find(function(l){ return l.textContent.replace(/\\s+/g,' ').trim().toLowerCase().indexOf('exibir')>=0; });
+    if(!lbl) return false;
+    var item=lbl.closest('.pgitem') || lbl.parentElement;
+    var ngSelect=item ? item.querySelector('ng-select') : null;
+    if(!ngSelect) return false;
+    var atual=ngSelect.querySelector('.ng-value-label');
+    if(atual && atual.textContent.trim()===valor) return true; // ja esta em 50
+    var box=ngSelect.querySelector('.ng-select-container'); if(!box) return false;
+    box.click(); await sleep(350);
+    var opts=document.querySelectorAll('.ng-option'); var clicou=false;
+    for(var i=0;i<opts.length;i++){
+      var t=(opts[i].querySelector('.ng-option-label')||opts[i]).textContent.replace(/\\s+/g,' ').trim();
+      if(t===valor){ opts[i].click(); clicou=true; break; }
+    }
+    if(!clicou){ box.click(); return false; } // fecha se nao achou a opcao
+    var t0=Date.now(); await sleep(250);
+    while(Date.now()-t0 < CFG.MAX_WAIT_MS){ if(!isLoading()) break; await sleep(CFG.POLL_MS); }
+    await sleep(150);
+    return true;
+  }
   async function coletarPaginas(cpf){
     var all=readRows(); var guard=0;
     while(guard++ < 60){
@@ -281,6 +307,8 @@ window.__fgts = (function(){
     var st=await waitResults(cpf);
     if(st==='vazio') return { status:'vazio' };
     if(st==='timeout') return { status:'timeout' };
+    // Garante 50 itens por pagina antes de ler (senao quem tem >5 debitos some).
+    await setExibirPorPagina(50);
     // LE OS RESULTADOS ANTES de qualquer mutacao. Clicar em "Adicionar a guia"
     // limpa/altera a grade, entao a leitura precisa vir primeiro (senao o CPF
     // some silenciosamente do resultado).
