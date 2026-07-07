@@ -156,12 +156,10 @@ window.__fgts = (function(){
   function indicesText(){ var el=document.querySelector('.indices'); return el?el.textContent.trim():''; }
   async function expandirPesquisa(){ if(getCpfInput()) return; var btn=getExpandir(); if(btn){ btn.click(); await sleep(300); } }
   async function garantirPaginacaoVisivel(){
-    // O br-pagination-table (que contem o select "Exibir") so aparece no DOM
-    // apos clicar em "Expandir Pesquisa". Esta funcao garante isso antes de
-    // tentar mudar o select Exibir para 50 itens.
+    // O br-pagination-table (que contem o select "Exibir") aparece no DOM
+    // apos a pesquisa retornar os resultados.
     if(document.querySelector('br-pagination-table')) return; // ja esta visivel
-    var btn=getExpandir();
-    if(btn){ btn.click(); await sleep(500); }
+    
     // Aguarda br-pagination-table aparecer no DOM (max 5s)
     var t0=Date.now();
     while(Date.now()-t0 < 5000){
