@@ -249,13 +249,9 @@ window.__fgts = (function(){
     return 'timeout';
   }
   async function setExibirPorPagina(valor){
-    // O seletor "Exibir:" (itens por pagina) vem em 5 por padrao.
-    // Estrutura real: br-pagination-table > div.pgitem > label[for$="-ex"] + ng-select
-    // O input dentro e readonly - so funciona clicando nas opcoes do dropdown.
     valor=String(valor);
 
     var lbl=null;
-    // Tenta encontrar o label por ate 5 segundos (Angular delay)
     var t0=Date.now();
     while(Date.now()-t0 < 5000){
       var allLabels=Array.prototype.slice.call(document.querySelectorAll('br-pagination-table label, .pagination-container label'));
@@ -275,45 +271,46 @@ window.__fgts = (function(){
     
     if(!lbl) return false;
 
-    // 2) Sobe ate o .pgitem e pega o ng-select dentro dele
     var item=lbl.closest('.pgitem') || lbl.parentElement;
     var ngSelect=item ? item.querySelector('ng-select') : null;
     if(!ngSelect) return false;
 
-    // 3) Verifica se ja esta no valor desejado
     var atual=ngSelect.querySelector('.ng-value-label');
     if(atual && atual.textContent.trim()===valor) return true;
 
-    // 4) Clica no container para abrir o dropdown
+    // Clica no container para abrir
     var box=ngSelect.querySelector('.ng-select-container');
     if(!box) return false;
+    
+    // Dispara mousedown e click (algumas versoes do ng-select precisam do mousedown)
+    box.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     box.click();
-    await sleep(400);
 
-    // 5) Busca as opcoes no ng-dropdown-panel deste ng-select especifico
-    //    (o Angular pode inserir o panel como filho do ng-select ou no body)
+    // Aguarda ativamente o dropdown renderizar as opcoes (ate 3s)
     var clicou=false;
-    var panel=ngSelect.querySelector('ng-dropdown-panel') || document.querySelector('ng-dropdown-panel');
-    if(panel){
-      var opts=Array.prototype.slice.call(panel.querySelectorAll('.ng-option'));
-      for(var i=0;i<opts.length;i++){
-        var t=(opts[i].querySelector('.ng-option-label')||opts[i]).textContent.replace(/\\s+/g,' ').trim();
-        if(t===valor){ opts[i].click(); clicou=true; break; }
-      }
-    }
-    // fallback: varre todos os .ng-option visiveis no documento
-    if(!clicou){
+    var t1=Date.now();
+    while(Date.now()-t1 < 3000){
       var allOpts=Array.prototype.slice.call(document.querySelectorAll('.ng-option'));
       for(var k=0;k<allOpts.length;k++){
-        var tt=(allOpts[k].querySelector('.ng-option-label')||allOpts[k]).textContent.replace(/\\s+/g,' ').trim();
-        if(tt===valor){ allOpts[k].click(); clicou=true; break; }
+        var optLbl=allOpts[k].querySelector('.ng-option-label');
+        var tt=(optLbl || allOpts[k]).textContent.replace(/\\s+/g,' ').trim();
+        if(tt===valor){ 
+          allOpts[k].click(); 
+          clicou=true; 
+          break; 
+        }
       }
+      if(clicou) break;
+      await sleep(250);
     }
-    if(!clicou){ box.click(); return false; } // fecha dropdown se nao achou
 
-    // 6) Aguarda a tabela recarregar com o novo limite de itens
-    var t0=Date.now(); await sleep(300);
-    while(Date.now()-t0 < CFG.MAX_WAIT_MS){ if(!isLoading()) break; await sleep(CFG.POLL_MS); }
+    if(!clicou){ 
+      box.click(); // tenta fechar o menu se falhou
+      return false; 
+    }
+
+    var t2=Date.now(); await sleep(300);
+    while(Date.now()-t2 < CFG.MAX_WAIT_MS){ if(!isLoading()) break; await sleep(CFG.POLL_MS); }
     await sleep(200);
     return true;
   }
