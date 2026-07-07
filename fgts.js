@@ -83,9 +83,9 @@ function lerRegistros(caminho) {
   const wb = XLSX.readFile(caminho);
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
-  const seen = new Set();
-  const registros = [];
-  let comCpf = 0, comFiltro = 0, dup = 0;
+  const mapa = new Map(); // cpf -> { nome, count }
+  const ordem = [];       // preserva a ordem de aparicao
+  let comCpf = 0, comFiltro = 0;
   for (const row of rows) {
     const d0 = digits(row[CFG.COL_CPF]);
     if (!d0) continue;
@@ -95,13 +95,23 @@ function lerRegistros(caminho) {
     comFiltro++;
     const cpf = d0.padStart(11, '0');
     if (cpf.length !== 11) continue;
-    if (seen.has(cpf)) { dup++; continue; }
-    seen.add(cpf);
     const nome = (row[CFG.COL_NOME] == null ? '' : row[CFG.COL_NOME].toString().trim());
+    if (mapa.has(cpf)) { mapa.get(cpf).count++; }
+    else { mapa.set(cpf, { nome, count: 1 }); ordem.push(cpf); }
+  }
+  const registros = [];
+  let dup = 0;
+  for (const cpf of ordem) {
+    const r = mapa.get(cpf);
+    let nome = r.nome;
+    if (r.count > 1) {
+      dup += (r.count - 1);
+      nome = (nome ? nome + ' ' : '') + '[DUPLICADO x' + r.count + ']'; // marca visual na propria linha
+    }
     registros.push([cpf, nome]);
   }
   log('Planilha: ' + comCpf + ' linhas com CPF | filtro F=="' + CFG.VALOR_FILTRO + '": ' + comFiltro +
-      ' | duplicados: ' + dup + ' | FINAL: ' + registros.length + ' CPFs');
+      ' | linhas duplicadas: ' + dup + ' | FINAL: ' + registros.length + ' CPFs unicos');
   return registros;
 }
 
@@ -140,6 +150,7 @@ window.__fgts = (function(){
   function getPesquisar(){ return Array.prototype.slice.call(document.querySelectorAll('button')).find(function(b){ return b.textContent.trim().toLowerCase()==='pesquisar'; }); }
   function getExpandir(){ return Array.prototype.slice.call(document.querySelectorAll('button')).find(function(b){ return b.textContent.trim().toLowerCase()==='expandir pesquisa'; }); }
   function isLoading(){ var l=document.querySelector('br-loading'); return !!(l && l.querySelector('*')); }
+  function semItens(){ var els=document.querySelectorAll('.description, .empty, .datatable-body .empty-row'); for(var i=0;i<els.length;i++){ if(els[i].textContent.replace(/\\s+/g,' ').trim().toLowerCase().indexOf('nenhum item encontrado')>=0) return true; } return false; }
   function indicesText(){ var el=document.querySelector('.indices'); return el?el.textContent.trim():''; }
   async function expandirPesquisa(){ if(getCpfInput()) return; var btn=getExpandir(); if(btn){ btn.click(); await sleep(300); } }
   function criarPanel(total){
@@ -221,6 +232,7 @@ window.__fgts = (function(){
     while(Date.now()-t0 < CFG.MAX_WAIT_MS){
       if(!isLoading()){
         if(firstRowCpf()===cpf) return 'ok';
+        if(semItens()) return 'vazio';
         if(readRows().length===0){ await sleep(300); if(!isLoading() && readRows().length===0 && firstRowCpf()==='') return 'vazio'; }
       }
       await sleep(CFG.POLL_MS);
@@ -260,9 +272,9 @@ window.__fgts = (function(){
     var st=await waitResults(cpf);
     if(st==='vazio') return { status:'vazio' };
     if(st==='timeout') return { status:'timeout' };
-    var chk=document.querySelector('#selecionar-todos'); if(chk && !chk.checked){ chk.click(); await sleep(120); }
-    var btnAdicionar=Array.prototype.slice.call(document.querySelectorAll('button')).find(function(b){ return b.textContent.trim().toLowerCase()==='adicionar à guia' || b.textContent.trim().toLowerCase()==='adicionar a guia'; });
-    if(btnAdicionar){ btnAdicionar.click(); await sleep(300); }
+    // LE OS RESULTADOS ANTES de qualquer mutacao. Clicar em "Adicionar a guia"
+    // limpa/altera a grade, entao a leitura precisa vir primeiro (senao o CPF
+    // some silenciosamente do resultado).
     var map=getColMap();
     var linhas=await coletarPaginas(cpf);
     var porData={};
@@ -271,6 +283,10 @@ window.__fgts = (function(){
       var val=parseBR(map.total>=0 ? row[map.total] : '');
       porData[data]=(porData[data]||0)+val;
     });
+    // Somente depois de ler: seleciona tudo e adiciona a guia (opcional).
+    var chk=document.querySelector('#selecionar-todos'); if(chk && !chk.checked){ chk.click(); await sleep(120); }
+    var btnAdicionar=Array.prototype.slice.call(document.querySelectorAll('button')).find(function(b){ return b.textContent.trim().toLowerCase()==='adicionar à guia' || b.textContent.trim().toLowerCase()==='adicionar a guia'; });
+    if(btnAdicionar){ btnAdicionar.click(); await sleep(300); }
     return { status:'ok', nlinhas: linhas.length, porData: porData, colMap: map };
   }
   return { process: process };
