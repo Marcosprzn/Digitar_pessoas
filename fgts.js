@@ -249,29 +249,67 @@ window.__fgts = (function(){
     return 'timeout';
   }
   async function setExibirPorPagina(valor){
-    // O seletor "Exibir:" (itens por pagina) vem em 5 por padrao. Com 5, quem
-    // tem mais de 5 debitos fica em outras paginas. Muda para 50 (input readonly:
-    // abre o dropdown e clica na opcao).
+    // O seletor "Exibir:" (itens por pagina) vem em 5 por padrao.
+    // Estrutura real: br-pagination-table > div.pgitem > label[for$="-ex"] + ng-select
+    // O input dentro e readonly - so funciona clicando nas opcoes do dropdown.
     valor=String(valor);
-    var labels=Array.prototype.slice.call(document.querySelectorAll('br-pagination-table label, .pagination-container label'));
-    var lbl=labels.find(function(l){ return l.textContent.replace(/\\s+/g,' ').trim().toLowerCase().indexOf('exibir')>=0; });
+
+    // 1) Localiza o label cujo [for] termina em "-ex" (distingue de "-pp" = Pagina)
+    var lbl=null;
+    var allLabels=Array.prototype.slice.call(document.querySelectorAll('br-pagination-table label, .pagination-container label'));
+    for(var j=0;j<allLabels.length;j++){
+      var forAttr=(allLabels[j].getAttribute('for')||'');
+      var txt=allLabels[j].textContent.replace(/\\s+/g,' ').trim().toLowerCase();
+      if(forAttr.slice(-3)==='-ex' || txt.indexOf('exibir')>=0){ lbl=allLabels[j]; break; }
+    }
+    // fallback: qualquer label com texto "exibir" na pagina
+    if(!lbl){
+      lbl=Array.prototype.slice.call(document.querySelectorAll('label')).find(function(l){
+        return l.textContent.replace(/\\s+/g,' ').trim().toLowerCase().indexOf('exibir')>=0;
+      })||null;
+    }
     if(!lbl) return false;
+
+    // 2) Sobe ate o .pgitem e pega o ng-select dentro dele
     var item=lbl.closest('.pgitem') || lbl.parentElement;
     var ngSelect=item ? item.querySelector('ng-select') : null;
     if(!ngSelect) return false;
+
+    // 3) Verifica se ja esta no valor desejado
     var atual=ngSelect.querySelector('.ng-value-label');
-    if(atual && atual.textContent.trim()===valor) return true; // ja esta em 50
-    var box=ngSelect.querySelector('.ng-select-container'); if(!box) return false;
-    box.click(); await sleep(350);
-    var opts=document.querySelectorAll('.ng-option'); var clicou=false;
-    for(var i=0;i<opts.length;i++){
-      var t=(opts[i].querySelector('.ng-option-label')||opts[i]).textContent.replace(/\\s+/g,' ').trim();
-      if(t===valor){ opts[i].click(); clicou=true; break; }
+    if(atual && atual.textContent.trim()===valor) return true;
+
+    // 4) Clica no container para abrir o dropdown
+    var box=ngSelect.querySelector('.ng-select-container');
+    if(!box) return false;
+    box.click();
+    await sleep(400);
+
+    // 5) Busca as opcoes no ng-dropdown-panel deste ng-select especifico
+    //    (o Angular pode inserir o panel como filho do ng-select ou no body)
+    var clicou=false;
+    var panel=ngSelect.querySelector('ng-dropdown-panel') || document.querySelector('ng-dropdown-panel');
+    if(panel){
+      var opts=Array.prototype.slice.call(panel.querySelectorAll('.ng-option'));
+      for(var i=0;i<opts.length;i++){
+        var t=(opts[i].querySelector('.ng-option-label')||opts[i]).textContent.replace(/\\s+/g,' ').trim();
+        if(t===valor){ opts[i].click(); clicou=true; break; }
+      }
     }
-    if(!clicou){ box.click(); return false; } // fecha se nao achou a opcao
-    var t0=Date.now(); await sleep(250);
+    // fallback: varre todos os .ng-option visiveis no documento
+    if(!clicou){
+      var allOpts=Array.prototype.slice.call(document.querySelectorAll('.ng-option'));
+      for(var k=0;k<allOpts.length;k++){
+        var tt=(allOpts[k].querySelector('.ng-option-label')||allOpts[k]).textContent.replace(/\\s+/g,' ').trim();
+        if(tt===valor){ allOpts[k].click(); clicou=true; break; }
+      }
+    }
+    if(!clicou){ box.click(); return false; } // fecha dropdown se nao achou
+
+    // 6) Aguarda a tabela recarregar com o novo limite de itens
+    var t0=Date.now(); await sleep(300);
     while(Date.now()-t0 < CFG.MAX_WAIT_MS){ if(!isLoading()) break; await sleep(CFG.POLL_MS); }
-    await sleep(150);
+    await sleep(200);
     return true;
   }
   async function coletarPaginas(cpf){
