@@ -441,19 +441,17 @@ async function esperarInicio(driver) {
     });
   }
 
-  if (!(await checkChromeDebug())) {
-    log('Fechando Chrome existente e reiniciando com --remote-debugging-port...');
-    try { require('child_process').execSync('taskkill /f /im chrome.exe', { stdio: 'ignore' }); } catch (e) {}
+  // Sempre fecha o Chrome existente e reabre com --remote-debugging-port,
+  // garantindo uma janela nova e limpa (evita abrir apenas uma aba numa sessao ja aberta).
+  log('Fechando Chrome existente e reiniciando com --remote-debugging-port...');
+  try { require('child_process').execSync('taskkill /f /im chrome.exe', { stdio: 'ignore' }); } catch (e) {}
+  await sleep(1500);
+  const args = ['--remote-debugging-port=' + CHROME_PORT, '--start-maximized', '--no-first-run', CFG.START_URL];
+  require('child_process').execFile(chromeBin, args, { detached: true }).unref();
+  for (let i = 0; i < 30; i++) {
     await sleep(1000);
-    const args = ['--remote-debugging-port=' + CHROME_PORT, '--start-maximized', '--no-first-run', CFG.START_URL];
-    require('child_process').execFile(chromeBin, args, { detached: true }).unref();
-    for (let i = 0; i < 30; i++) {
-      await sleep(1000);
-      if (await checkChromeDebug()) { log('Chrome iniciado na porta ' + CHROME_PORT + '.'); break; }
-      if (i === 5) log('Aguardando Chrome iniciar...');
-    }
-  } else {
-    log('Chrome ja esta aberto na porta ' + CHROME_PORT + '. Conectando...');
+    if (await checkChromeDebug()) { log('Chrome iniciado na porta ' + CHROME_PORT + '.'); break; }
+    if (i === 5) log('Aguardando Chrome iniciar...');
   }
 
   if (!(await checkChromeDebug())) {
