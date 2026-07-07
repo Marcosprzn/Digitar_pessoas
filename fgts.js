@@ -23,7 +23,9 @@ const { execFileSync } = require('child_process');
 
 const { Builder } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
-const XLSX = require('xlsx');
+// xlsx-js-style e um fork do xlsx com suporte a estilos (negrito/bordas/cores).
+// Usa fallback para xlsx caso o pacote de estilo nao esteja instalado.
+let XLSX; try { XLSX = require('xlsx-js-style'); } catch (e) { XLSX = require('xlsx'); }
 
 /* ============================ CONFIG ============================ */
 const CFG = {
@@ -206,14 +208,21 @@ window.__fgts = (function(){
   }
   function getColMap(){
     var heads = Array.prototype.slice.call(document.querySelectorAll('datatable-header-cell'));
-    var apur=-1, total=-1;
+    var apur=-1, total=-1, valor=-1;
     heads.forEach(function(h,i){
       var t=h.textContent.replace(/\\s+/g,' ').trim().toLowerCase();
       var te=h.querySelector('[title]'); var title=(te?te.getAttribute('title'):'').toLowerCase();
       if(apur<0 && (title.indexOf('apura')>=0 || t.indexOf('apura')>=0)) apur=i;
       if(total<0 && (t==='total' || title==='total')) total=i;
+      if(valor<0 && (t==='principal' || title==='principal')) valor=i;
     });
-    return { apur: apur, total: total, nCols: heads.length };
+    // Reforca a coluna "Valor" (Principal) pela celula editavel (title="Editar").
+    var bodyRow=document.querySelector('datatable-body-row');
+    if(bodyRow){
+      var cells=Array.prototype.slice.call(bodyRow.querySelectorAll('datatable-body-cell'));
+      for(var i=0;i<cells.length;i++){ if(cells[i].querySelector('[title="Editar"]')){ valor=i; break; } }
+    }
+    return { apur: apur, total: total, valor: valor, nCols: heads.length };
   }
   function readRows(){
     return Array.prototype.slice.call(document.querySelectorAll('datatable-body-row')).map(function(r){
@@ -278,9 +287,10 @@ window.__fgts = (function(){
     var map=getColMap();
     var linhas=await coletarPaginas(cpf);
     var porData={};
+    var colValor=(map.valor>=0 ? map.valor : map.total); // usa Principal (Valor); cai em Total se nao achar
     linhas.forEach(function(row){
       var data=(map.apur>=0 ? row[map.apur] : '') || '(sem data)';
-      var val=parseBR(map.total>=0 ? row[map.total] : '');
+      var val=parseBR(colValor>=0 ? row[colValor] : '');
       porData[data]=(porData[data]||0)+val;
     });
     // Somente depois de ler: seleciona tudo e adiciona a guia (opcional).
@@ -475,7 +485,7 @@ async function esperarInicio(driver) {
       if (res.status === 'timeout') { semDebito.push({ i, cpf, nome, obs: 'TIMEOUT' }); log('[' + i + '] ' + cpfFmt + ' ' + nome + ' -> TIMEOUT', 'AVISO'); await sleep(CFG.PAUSE_MS); continue; }
       if (res.status === 'erro') { semDebito.push({ i, cpf, nome, obs: 'ERRO: ' + res.erro }); log('[' + i + '] ' + cpfFmt + ' ERRO: ' + res.erro, 'ERRO'); await sleep(CFG.PAUSE_MS); continue; }
 
-      if (i === 0 && res.colMap) log('Mapa de colunas -> apuracao=' + res.colMap.apur + ' total=' + res.colMap.total + ' (nCols=' + res.colMap.nCols + ')');
+      if (i === 0 && res.colMap) log('Mapa de colunas -> apuracao=' + res.colMap.apur + ' valor(Principal)=' + res.colMap.valor + ' total=' + res.colMap.total + ' (nCols=' + res.colMap.nCols + ')');
       const porData = res.porData || {};
       const datas = Object.keys(porData);
       let somaCpf = 0;
@@ -488,9 +498,41 @@ async function esperarInicio(driver) {
     await sleep(CFG.PAUSE_MS);
   }
 
-  // 5) gera planilha
+  // 5) gera planilha (visual: cabecalho em negrito, bordas em todas as celulas, TOTAL destacado)
   try {
     const wb = XLSX.utils.book_new();
+
+    // ---------- estilos (ignorados silenciosamente se rodar com o xlsx padrao) ----------
+    const borda = () => ({
+      top: { style: 'thin', color: { rgb: 'BFBFBF' } }, bottom: { style: 'thin', color: { rgb: 'BFBFBF' } },
+      left: { style: 'thin', color: { rgb: 'BFBFBF' } }, right: { style: 'thin', color: { rgb: 'BFBFBF' } }
+    });
+    const ST_HEADER = { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 }, fill: { patternType: 'solid', fgColor: { rgb: '0B7A4B' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borda() };
+    const ST_CELL = { border: borda(), alignment: { vertical: 'center' } };
+    const ST_TOTAL = { font: { bold: true, sz: 11 }, fill: { patternType: 'solid', fgColor: { rgb: 'D9F2E6' } }, border: borda(), alignment: { vertical: 'center' } };
+    const MONEY = '#,##0.00';
+
+    // aoa = [header, ...linhas]; opts: { moneyCols:[idx], totalRow:bool, widths:[wch] }
+    function criarAba(nomeAba, header, linhas, opts) {
+      opts = opts || {};
+      const aoa = [header].concat(linhas);
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const nCols = header.length, nRows = aoa.length;
+      const money = opts.moneyCols || [];
+      for (let r = 0; r < nRows; r++) {
+        for (let c = 0; c < nCols; c++) {
+          const ref = XLSX.utils.encode_cell({ r, c });
+          if (!ws[ref]) ws[ref] = { t: 's', v: '' };
+          const isHeader = r === 0;
+          const isTotal = opts.totalRow && r === nRows - 1;
+          ws[ref].s = isHeader ? ST_HEADER : (isTotal ? ST_TOTAL : ST_CELL);
+          if (!isHeader && money.indexOf(c) >= 0 && typeof ws[ref].v === 'number') ws[ref].z = MONEY;
+        }
+      }
+      ws['!cols'] = header.map((h, i) => ({ wch: (opts.widths && opts.widths[i]) || Math.max(String(h).length + 2, 12) }));
+      ws['!rows'] = aoa.map((_, r) => ({ hpt: r === 0 ? 22 : 18 }));
+      XLSX.utils.book_append_sheet(wb, ws, nomeAba);
+    }
 
     // Agrupa resultados por competencia
     const porCompetencia = {};
@@ -499,20 +541,26 @@ async function esperarInicio(driver) {
       porCompetencia[r.competencia].push(r);
     }
 
-    // Uma aba por mes: CPF | Nome | Valor + linha TOTAL
+    // Uma aba por mes: CPF | Nome | Valor | Valor FGTS na GUIA (= Valor * 100 / 8) + linha TOTAL
+    const HDR = ['CPF', 'Nome', 'Valor', 'Valor FGTS na GUIA'];
     const comps = Object.keys(porCompetencia).sort();
     for (const comp of comps) {
       const itens = porCompetencia[comp];
-      let soma = 0;
-      const linhas = itens.map(r => { soma += r.soma; return { CPF: r.cpf, Nome: r.nome, Valor: Number(r.soma.toFixed(2)) }; });
-      linhas.push({ CPF: '', Nome: 'TOTAL', Valor: Number(soma.toFixed(2)) });
+      let somaV = 0, somaG = 0;
+      const linhas = itens.map(r => {
+        const v = Number(r.soma.toFixed(2));
+        const g = Number((r.soma * 100 / 8).toFixed(2));
+        somaV += v; somaG += g;
+        return [r.cpf, r.nome, v, g];
+      });
+      linhas.push(['', 'TOTAL', Number(somaV.toFixed(2)), Number(somaG.toFixed(2))]);
       const nomeAba = comp.replace(/[/\\?*[\]]/g, '-').slice(0, 31) || 'Competencia';
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhas), nomeAba);
+      criarAba(nomeAba, HDR, linhas, { moneyCols: [2, 3], totalRow: true, widths: [16, 42, 14, 20] });
     }
-    if (!comps.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ CPF: '', Nome: '', Valor: '' }]), 'Sem dados');
+    if (!comps.length) criarAba('Sem dados', HDR, [['', '', '', '']], { moneyCols: [2, 3], widths: [16, 42, 14, 20] });
 
-    const rows2 = semDebito.map(s => ({ Indice: s.i, CPF: fmtCpf(s.cpf), Nome: s.nome, Obs: s.obs }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows2.length ? rows2 : [{ Indice: '', CPF: '', Nome: '', Obs: '' }]), 'Sem_Debito_Erros');
+    const rows2 = semDebito.map(s => [s.i, fmtCpf(s.cpf), s.nome, s.obs]);
+    criarAba('Sem_Debito_Erros', ['Indice', 'CPF', 'Nome', 'Obs'], rows2.length ? rows2 : [['', '', '', '']], { widths: [8, 16, 42, 30] });
 
     // Zero ou erro: CPFs com valor zero + semDebito
     const somaPorCpf = {}, nomePorCpf = {};
@@ -520,9 +568,9 @@ async function esperarInicio(driver) {
       somaPorCpf[r.cpf] = (somaPorCpf[r.cpf] || 0) + r.soma;
       nomePorCpf[r.cpf] = r.nome;
     }
-    const zeros = Object.keys(somaPorCpf).filter(c => somaPorCpf[c] === 0).map(c => ({ CPF: c, Nome: nomePorCpf[c], Obs: 'Valor total R$ 0,00' }));
-    const rows3 = zeros.concat(semDebito.map(s => ({ CPF: fmtCpf(s.cpf), Nome: s.nome, Obs: s.obs })));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows3.length ? rows3 : [{ CPF: '', Nome: '', Obs: '' }]), 'Zero_ou_Erro');
+    const zeros = Object.keys(somaPorCpf).filter(c => somaPorCpf[c] === 0).map(c => [c, nomePorCpf[c], 'Valor total R$ 0,00']);
+    const rows3 = zeros.concat(semDebito.map(s => [fmtCpf(s.cpf), s.nome, s.obs]));
+    criarAba('Zero_ou_Erro', ['CPF', 'Nome', 'Obs'], rows3.length ? rows3 : [['', '', '']], { widths: [16, 42, 30] });
 
     const outPath = path.join(process.cwd(), 'fgts_resultados_' + STAMP + '.xlsx');
     XLSX.writeFile(wb, outPath);

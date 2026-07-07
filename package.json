@@ -10,6 +10,7 @@
   "dependencies": {
     "selenium-webdriver": "4.11.1",
     "xlsx": "0.18.5",
+    "xlsx-js-style": "1.2.0",
     "chromedriver": "^109.0.0"
   },
   "engines": {
